@@ -1,0 +1,1851 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI追剧搭子 · 庆余年</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+
+:root {
+  --bg: #0a0a0f;
+  --bg2: #111118;
+  --bg3: #1a1a24;
+  --bg4: #22222f;
+  --surface: #1e1e2a;
+  --border: rgba(255,255,255,0.07);
+  --border2: rgba(255,255,255,0.12);
+  --tencent: #00b5e5;
+  --tencent2: #0095c2;
+  --gold: #e6b84a;
+  --gold2: #c99a2e;
+  --text: #e8e8f0;
+  --text2: #9898b0;
+  --text3: #5a5a72;
+  --red: #e05252;
+  --green: #4caf7d;
+  --radius: 10px;
+  --font: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+body.is-fullscreen {
+  overflow: hidden;
+}
+
+body.is-fullscreen .nav { display: none; }
+body.is-fullscreen .video-column { flex: 1; min-height: 0; }
+body.is-fullscreen .video-area { flex: 1; }
+
+/* ── TOP NAV ── */
+.nav {
+  height: 52px;
+  background: rgba(10,10,15,0.95);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 16px;
+  flex-shrink: 0;
+  z-index: 100;
+}
+
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--tencent);
+  letter-spacing: -0.5px;
+}
+
+.nav-logo svg { width: 24px; height: 24px; }
+
+.nav-title {
+  flex: 1;
+  font-size: 14px;
+  color: var(--text2);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nav-title span { color: var(--text); font-weight: 500; }
+.nav-badge {
+  background: var(--tencent);
+  color: #fff;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.nav-actions { display: flex; align-items: center; gap: 10px; }
+.nav-btn {
+  background: none;
+  border: 1px solid var(--border2);
+  color: var(--text2);
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--font);
+  transition: all .2s;
+  display: flex; align-items: center; gap: 5px;
+}
+.nav-btn:hover { border-color: var(--tencent); color: var(--tencent); }
+.nav-btn.vip { border-color: var(--gold); color: var(--gold); }
+.nav-btn.vip:hover { background: rgba(230,184,74,0.1); }
+
+/* ── MAIN ── */
+.video-column {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #000;
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+
+.video-area {
+  flex: 1;
+  position: relative;
+  background: #000;
+  overflow: hidden;
+  cursor: pointer;
+  min-height: 200px;
+}
+
+/* 真实视频在底层，3D 与气泡叠在上层 */
+.main-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  z-index: 1;
+  background: #000;
+}
+
+.video-overlay-ui {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+/* 2D 搭子贴图层：固定在视频区域左下角 */
+#companion-layer {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: min(42%, 360px);
+  height: min(58%, 460px);
+  z-index: 12;
+  pointer-events: none;
+}
+.companion-sprite {
+  position: absolute;
+  left: 10px;
+  bottom: 6px;
+  width: min(76%, 260px);
+  max-height: 92%;
+  object-fit: contain;
+  transform-origin: 50% 100%;
+  opacity: 0;
+  transform: translateY(8px) scale(0.92);
+  transition: opacity .35s ease, transform .35s ease;
+  filter: drop-shadow(0 12px 30px rgba(0,0,0,.45));
+}
+.companion-sprite.show {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  animation: spritePop .45s ease-out;
+}
+@keyframes spritePop {
+  0% { opacity: 0; transform: translateY(8px) scale(.86); }
+  68% { opacity: 1; transform: translateY(-2px) scale(1.03); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* 追剧搭子：模型旁半透明气泡，说完后淡出 */
+.girl-speech-bubble {
+  position: absolute;
+  left: 34px;
+  bottom: calc(min(58%, 460px) - 26px);
+  max-width: 268px;
+  z-index: 14;
+  opacity: 0;
+  transform: translateY(6px) scale(0.98);
+  transition: opacity 0.45s ease, transform 0.45s ease;
+  pointer-events: none;
+  overflow: visible;
+}
+.girl-speech-bubble.visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+.girl-speech-bubble.fading {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.98);
+  transition: opacity 0.55s ease, transform 0.55s ease;
+}
+
+.girl-speech-inner {
+  position: relative;
+  background: rgba(24, 28, 44, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 16px;
+  padding: 11px 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
+}
+
+/* 范闲：画布旁气泡（与追剧搭子同款逻辑，略偏金） */
+.fan-speech-bubble {
+  position: absolute;
+  left: 34px;
+  bottom: calc(min(58%, 460px) + 56px);
+  max-width: 268px;
+  z-index: 14;
+  opacity: 0;
+  transform: translateY(6px) scale(0.98);
+  transition: opacity 0.45s ease, transform 0.45s ease;
+  pointer-events: none;
+  overflow: visible;
+}
+.fan-speech-bubble.visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+.fan-speech-bubble.fading {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.98);
+  transition: opacity 0.55s ease, transform 0.55s ease;
+}
+.fan-speech-inner {
+  position: relative;
+  background: rgba(40, 32, 18, 0.48);
+  border: 1px solid rgba(230, 184, 74, 0.35);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 16px;
+  padding: 11px 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: rgba(255, 248, 230, 0.95);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
+}
+
+.api-key-row {
+  display: flex;
+  gap: 8px;
+  padding: 0 12px 8px;
+  align-items: center;
+}
+.api-key-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  color: var(--text);
+  font-size: 11px;
+  font-family: var(--font);
+  outline: none;
+}
+.api-key-input:focus { border-color: var(--tencent); }
+.api-key-save {
+  flex-shrink: 0;
+  padding: 7px 12px;
+  border: none;
+  border-radius: 8px;
+  background: var(--tencent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: var(--font);
+}
+.api-key-save:hover { background: var(--tencent2); }
+.api-key-clear {
+  flex-shrink: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text2);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: var(--font);
+}
+.api-key-clear:hover { border-color: var(--text3); color: var(--text); }
+
+.ep-info {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  background: rgba(0,0,0,0.6);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--text2);
+  backdrop-filter: blur(8px);
+}
+.ep-info strong { color: var(--text); }
+
+.scene-label {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: rgba(0,0,0,0.7);
+  border: 1px solid rgba(230,184,74,0.4);
+  color: var(--gold);
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 5px;
+  backdrop-filter: blur(8px);
+  animation: sceneFade 3s ease-in-out infinite;
+}
+
+.drama-title-overlay {
+  position: absolute;
+  bottom: 72px;
+  left: 20px;
+  right: 20px;
+  pointer-events: none;
+}
+.drama-title-overlay .chi { font-size: 26px; font-weight: 700; color: #fff; letter-spacing: 4px; text-shadow: 0 2px 20px rgba(0,0,0,0.8); }
+.drama-title-overlay .sub { font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 4px; letter-spacing: 1px; }
+
+.play-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity .3s;
+  background: rgba(0,0,0,0.35);
+  z-index: 18;
+  pointer-events: none;
+}
+.play-overlay .play-btn-big { pointer-events: auto; cursor: pointer; }
+.video-area:hover .play-overlay,
+.video-area.show-play-hint .play-overlay { opacity: 1; }
+.play-btn-big {
+  width: 64px;
+  height: 64px;
+  background: rgba(255,255,255,0.15);
+  border: 2px solid rgba(255,255,255,0.5);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+  transition: all .2s;
+}
+.play-btn-big:hover { background: rgba(255,255,255,0.25); transform: scale(1.1); }
+
+/* ── VIDEO CONTROLS ── */
+.video-controls {
+  background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.7) 100%);
+  padding: 10px 16px 14px;
+  flex-shrink: 0;
+  z-index: 20;
+}
+
+.progress-container {
+  position: relative;
+  height: 3px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 2px;
+  cursor: pointer;
+  margin-bottom: 10px;
+}
+.progress-bar {
+  height: 100%;
+  background: var(--tencent);
+  border-radius: 2px;
+  width: 23%;
+  position: relative;
+  transition: height .2s;
+}
+.progress-container:hover { height: 5px; margin-top: -1px; }
+.progress-dot {
+  position: absolute;
+  right: -5px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 11px;
+  height: 11px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--tencent);
+  display: none;
+}
+.progress-container:hover .progress-dot { display: block; }
+
+.story-marker {
+  position: absolute;
+  top: -3px;
+  width: 2px;
+  height: 9px;
+  background: var(--gold);
+  border-radius: 1px;
+  transform: translateX(-50%);
+  cursor: pointer;
+}
+.story-marker::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.85);
+  border: 1px solid var(--gold);
+  color: var(--gold);
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s;
+}
+.story-marker:hover::after { opacity: 1; }
+
+.ctrl-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ctrl-btn {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.8);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color .2s, background .2s;
+  font-size: 12px;
+  font-family: var(--font);
+}
+.ctrl-btn:hover { color: #fff; background: rgba(255,255,255,0.1); }
+.ctrl-btn svg { width: 18px; height: 18px; }
+
+.time-display { font-size: 12px; color: rgba(255,255,255,0.6); font-variant-numeric: tabular-nums; }
+.ctrl-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+
+.vol-slider {
+  width: 70px;
+  height: 3px;
+  accent-color: var(--tencent);
+  cursor: pointer;
+}
+
+.quality-tag {
+  font-size: 11px;
+  padding: 2px 7px;
+  background: rgba(0,181,229,0.15);
+  border: 1px solid rgba(0,181,229,0.3);
+  color: var(--tencent);
+  border-radius: 3px;
+}
+
+/* ── 右侧边栏：对话记录（与设定同面板） ── */
+.edge-panel-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.edge-panel-settings {
+  flex: 0 1 48%;
+  min-height: 0;
+  overflow-y: auto;
+}
+.edge-panel-settings::-webkit-scrollbar { width: 4px; }
+.edge-panel-settings::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 2px; }
+
+.edge-chat-dock {
+  flex: 1;
+  min-height: 100px;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border2);
+  padding: 8px 0 10px;
+  background: rgba(0,0,0,0.22);
+}
+.edge-chat-head {
+  padding: 0 14px 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.edge-chat-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.edge-chat-meta { font-size: 10px; color: var(--text3); text-align: right; }
+
+.sidebar-messages {
+  flex: 1;
+  min-height: 64px;
+  overflow-y: auto;
+  padding: 4px 10px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sidebar-messages::-webkit-scrollbar { width: 4px; }
+.sidebar-messages::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 2px; }
+.sidebar-messages .bubble { max-width: 100%; }
+
+.sidebar-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 0 10px 6px;
+  max-height: 76px;
+  overflow-y: auto;
+}
+.sidebar-input-row {
+  display: flex;
+  gap: 8px;
+  padding: 0 12px;
+  align-items: flex-end;
+}
+.sidebar-msg-input { min-height: 38px; max-height: 80px; }
+
+.mode-pill {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(0,181,229,0.15);
+  border: 1px solid rgba(0,181,229,0.35);
+  color: var(--tencent);
+}
+
+.msg { display: flex; gap: 8px; align-items: flex-end; }
+.msg.user { flex-direction: row-reverse; }
+
+.msg-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  margin-bottom: 2px;
+}
+.msg.ai .msg-avatar { background: linear-gradient(135deg, #0f2a45, #1a3d5c); border: 1px solid var(--tencent); }
+.msg.user .msg-avatar { background: var(--bg4); border: 1px solid var(--border2); font-size: 10px; color: var(--text2); }
+
+.bubble {
+  max-width: 85%;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.msg.ai .bubble {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-bottom-left-radius: 4px;
+  color: var(--text);
+}
+
+.msg.user .bubble {
+  background: linear-gradient(135deg, var(--tencent2), #005f7a);
+  border-bottom-right-radius: 4px;
+  color: #fff;
+}
+
+.bubble-name {
+  font-size: 10px;
+  color: var(--tencent);
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+.sys-msg {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text3);
+  padding: 4px 10px;
+  background: var(--bg3);
+  border-radius: 16px;
+  margin: 2px auto;
+  width: fit-content;
+  border: 1px solid var(--border);
+}
+
+.quick-prompts {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+.quick-prompts::-webkit-scrollbar { height: 0; }
+
+.qp-btn {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  color: var(--text2);
+  font-size: 11px;
+  cursor: pointer;
+  font-family: var(--font);
+  transition: all .2s;
+  white-space: nowrap;
+}
+.qp-btn:hover { border-color: var(--tencent); color: var(--tencent); }
+
+.input-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.msg-input {
+  flex: 1;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 11px;
+  color: var(--text);
+  font-size: 13px;
+  font-family: var(--font);
+  outline: none;
+  resize: none;
+  max-height: 88px;
+  line-height: 1.45;
+  transition: border-color .2s;
+}
+.msg-input:focus { border-color: rgba(0,181,229,0.4); }
+.msg-input::placeholder { color: var(--text3); }
+
+.send-btn {
+  width: 38px;
+  height: 38px;
+  background: var(--tencent);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .2s;
+  flex-shrink: 0;
+}
+.send-btn:hover { background: var(--tencent2); }
+.send-btn:disabled { background: var(--bg4); color: var(--text3); cursor: not-allowed; }
+.send-btn svg { width: 18px; height: 18px; }
+
+/* ── EDGE SETTINGS PANEL ── */
+.edge-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 320px;
+  max-width: 92vw;
+  height: 100%;
+  z-index: 2000;
+  background: rgba(18,18,28,0.72);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  border-left: 1px solid var(--border2);
+  box-shadow: -12px 0 40px rgba(0,0,0,0.45);
+  transform: translateX(100%);
+  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  display: flex;
+  flex-direction: column;
+  pointer-events: auto;
+}
+.edge-panel.open {
+  transform: translateX(0);
+}
+
+.edge-panel-header {
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.edge-panel-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.edge-close {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  transition: all .2s;
+}
+.edge-close:hover { border-color: var(--tencent); color: var(--tencent); }
+
+.mode-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 12px 14px 10px;
+}
+.mode-tab {
+  padding: 10px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg3);
+  color: var(--text2);
+  font-size: 12px;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: all .2s;
+  text-align: center;
+  font-weight: 500;
+}
+.mode-tab:hover { border-color: var(--border2); color: var(--text); }
+.mode-tab.active {
+  border-color: var(--tencent);
+  color: var(--tencent);
+  background: rgba(0,181,229,0.12);
+}
+
+.edge-panel-settings .panel-body {
+  padding: 0 14px 12px;
+}
+
+.form-group { margin-bottom: 14px; }
+.form-label {
+  display: block;
+  font-size: 11px;
+  color: var(--text3);
+  margin-bottom: 6px;
+}
+.form-select, .form-range-wrap {
+  width: 100%;
+}
+.form-select select {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--text);
+  font-size: 13px;
+  font-family: var(--font);
+  outline: none;
+}
+.form-select select:focus { border-color: var(--tencent); }
+
+input[type="range"].setting-range {
+  width: 100%;
+  accent-color: var(--tencent);
+}
+.range-hint {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text3);
+  margin-top: 4px;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.toggle-row span { font-size: 13px; color: var(--text2); }
+
+.switch {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+}
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider-sw {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: var(--bg4);
+  border-radius: 24px;
+  transition: .25s;
+}
+.slider-sw::before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background: #fff;
+  border-radius: 50%;
+  transition: .25s;
+}
+.switch input:checked + .slider-sw { background: var(--tencent); }
+.switch input:checked + .slider-sw::before { transform: translateX(20px); }
+
+.fanxian-intro {
+  font-size: 13px;
+  line-height: 1.75;
+  color: var(--text2);
+  padding: 12px;
+  background: rgba(230,184,74,0.06);
+  border: 1px solid rgba(230,184,74,0.2);
+  border-radius: 10px;
+  margin-top: 4px;
+}
+.fanxian-intro strong { color: var(--gold); }
+
+.fanxian-btn-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+.fanxian-btn-row .btn-primary {
+  flex: 1;
+  margin-top: 0;
+  width: auto;
+}
+.btn-primary {
+  width: 100%;
+  margin-top: 12px;
+  padding: 11px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--tencent), #0066aa);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: opacity .2s, transform .15s;
+}
+.btn-primary:hover { opacity: 0.95; transform: translateY(-1px); }
+.btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+.btn-secondary-fan {
+  flex: 1;
+  padding: 11px;
+  border-radius: 10px;
+  border: 1px solid var(--border2);
+  background: var(--bg3);
+  color: var(--text2);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font);
+  cursor: pointer;
+  transition: border-color .2s, color .2s;
+}
+.btn-secondary-fan:hover:not(:disabled) {
+  border-color: var(--tencent);
+  color: var(--tencent);
+}
+.btn-secondary-fan:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.fanxian-activated {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--green);
+  text-align: center;
+  display: none;
+}
+.fanxian-activated.show { display: block; }
+
+.letterbox-top, .letterbox-bottom {
+  position: absolute;
+  left: 0; right: 0;
+  height: 12%;
+  background: #000;
+  z-index: 2;
+}
+.letterbox-top { top: 0; }
+.letterbox-bottom { bottom: 0; }
+
+.grain {
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  opacity: 0.35;
+  z-index: 3;
+  animation: grainAnim 0.5s steps(2) infinite;
+}
+@keyframes grainAnim { 0%{transform:translate(0,0)} 25%{transform:translate(-2px,1px)} 50%{transform:translate(1px,-1px)} 75%{transform:translate(-1px,2px)} 100%{transform:translate(0,0)} }
+
+.mountain-svg { position: absolute; bottom: 12%; left: 0; right: 0; z-index: 1; }
+.fog {
+  position: absolute;
+  bottom: 12%;
+  left: -20%;
+  width: 140%;
+  height: 80px;
+  background: linear-gradient(to top, rgba(10,15,25,0.6) 0%, transparent 100%);
+  animation: fogDrift 12s ease-in-out infinite alternate;
+  z-index: 2;
+}
+@keyframes fogDrift { 0%{transform:translateX(0)} 100%{transform:translateX(8%)} }
+
+@keyframes sceneFade { 0%,100%{opacity:0.7} 50%{opacity:1} }
+
+/* Fullscreen target：内含视频列 + 右侧设定面板，保证全屏时 UI 仍可用 */
+#fullscreenRoot {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bg);
+  position: relative;
+}
+body.is-fullscreen #fullscreenRoot {
+  height: 100vh;
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-logo">
+    <svg viewBox="0 0 24 24" fill="none">
+      <rect x="2" y="2" width="9" height="9" rx="2" fill="currentColor" opacity="0.9"/>
+      <rect x="13" y="2" width="9" height="9" rx="2" fill="currentColor" opacity="0.7"/>
+      <rect x="2" y="13" width="9" height="9" rx="2" fill="currentColor" opacity="0.7"/>
+      <rect x="13" y="13" width="9" height="9" rx="2" fill="currentColor" opacity="0.5"/>
+    </svg>
+    腾讯视频
+  </div>
+  <div class="nav-title">
+    <span>庆余年 第二季</span>
+    <span class="nav-badge">AI搭子</span>
+    <span style="color:var(--text3)">第 33 集</span>
+  </div>
+  <div class="nav-actions">
+    <button type="button" class="nav-btn vip">👑 VIP特权</button>
+    <button type="button" class="nav-btn">下载</button>
+    <button type="button" class="nav-btn">分享</button>
+  </div>
+</nav>
+
+<div id="fullscreenRoot">
+
+  <div class="video-column" id="videoColumn">
+
+    <div class="video-area" id="videoArea">
+      <video id="mainVideo" class="main-video" playsinline preload="metadata" controlslist="nodownload">
+        <source src="./video/qingyvnian.mp4" type="video/mp4">
+      </video>
+      <div class="video-overlay-ui">
+        <div class="ep-info"><strong>庆余年 第二季</strong> · 第33集</div>
+        <div class="scene-label" id="sceneLabelUi">🎬 正片播放中</div>
+        <div class="drama-title-overlay">
+          <div class="chi">庆余年</div>
+          <div class="sub">QING YU NIAN · Season II</div>
+        </div>
+      </div>
+      <div id="companion-layer" aria-hidden="true">
+        <img id="girlSprite" class="companion-sprite" src="./models/girl.png" alt="追剧搭子贴图">
+        <img id="fanxianSprite" class="companion-sprite" src="./models/fanxian.png" alt="范闲贴图">
+      </div>
+      <div id="girlSpeechBubble" class="girl-speech-bubble" aria-live="polite">
+        <div class="girl-speech-inner" id="girlSpeechText"></div>
+      </div>
+      <div id="fanSpeechBubble" class="fan-speech-bubble" aria-live="polite">
+        <div class="fan-speech-inner" id="fanSpeechText"></div>
+      </div>
+      <div class="play-overlay" id="centerPlayOverlay">
+        <button type="button" class="play-btn-big" id="centerPlayBtn" aria-label="播放">
+          <svg viewBox="0 0 24 24" fill="white" width="26" height="26"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="video-controls">
+      <div class="progress-container" id="progressBar">
+        <div class="progress-bar" id="progressFill">
+          <div class="progress-dot"></div>
+        </div>
+        <div class="story-marker" style="left:18%" data-tip="范闲入京"></div>
+        <div class="story-marker" style="left:35%" data-tip="监察院密会"></div>
+        <div class="story-marker" style="left:51%" data-tip="身世揭秘 ← 当前"></div>
+        <div class="story-marker" style="left:70%" data-tip="叶轻眉线索"></div>
+      </div>
+      <div class="ctrl-row">
+        <button type="button" class="ctrl-btn" id="playToggleBtn" aria-label="播放暂停">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+        </button>
+        <button type="button" class="ctrl-btn" aria-label="上一集">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+        </button>
+        <button type="button" class="ctrl-btn" aria-label="下一集">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zm2-8.14L11.03 12 8 14.14V9.86zM16 6h2v12h-2z"/></svg>
+        </button>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="rgba(255,255,255,0.6)" style="margin-left:4px"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
+        <input type="range" class="vol-slider" id="volSlider" min="0" max="100" value="80" aria-label="音量">
+        <span class="time-display" id="timeDisplay">00:00 / 00:00</span>
+        <div class="ctrl-right">
+          <span class="quality-tag">4K</span>
+          <button type="button" class="ctrl-btn" id="btnFullscreen" aria-label="全屏" title="全屏">
+            <svg id="iconEnterFs" viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+            <svg id="iconExitFs" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>
+          </button>
+          <button type="button" class="ctrl-btn" style="font-size:12px;padding:4px 8px">倍速</button>
+          <button type="button" class="ctrl-btn" style="font-size:12px;padding:4px 8px">选集</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <aside class="edge-panel" id="edgePanel" aria-hidden="true">
+    <div class="edge-panel-header">
+      <span class="edge-panel-title">AI 追剧设定</span>
+      <button type="button" class="edge-close" id="edgeCloseBtn" title="关闭">×</button>
+    </div>
+    <div class="mode-tabs">
+      <button type="button" class="mode-tab active" data-panel-mode="girl">追剧搭子</button>
+      <button type="button" class="mode-tab" data-panel-mode="fanxian">剧中人物搭子</button>
+    </div>
+    <div class="edge-panel-main">
+      <div class="edge-panel-settings">
+        <div class="panel-body" id="panelBodyGirl">
+          <p style="font-size:12px;color:var(--text3);margin-bottom:12px;line-height:1.6">自定义搭子性格与互动节奏。演示阶段设置会输出到浏览器控制台。</p>
+          <div class="fanxian-btn-row" style="margin:0 0 10px 0">
+            <button type="button" class="btn-primary" id="btnEnableGirl">启用追剧搭子</button>
+            <button type="button" class="btn-secondary-fan" id="btnDisableGirl" disabled>关闭追剧搭子</button>
+          </div>
+          <div class="fanxian-activated" id="girlActivatedHint" style="display:none;margin-bottom:10px">追剧搭子已启用。</div>
+          <div class="form-group">
+            <label class="form-label">性格</label>
+            <div class="form-select">
+              <select id="girlPersonality">
+                <option value="gossip">八卦</option>
+                <option value="sharp">毒舌</option>
+                <option value="timid">胆小</option>
+                <option value="warm">暖心</option>
+                <option value="cold">高冷</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">立场强度</label>
+            <input type="range" class="setting-range" id="stanceSlider" min="0" max="2" step="1" value="1">
+            <div class="range-hint"><span>轻度</span><span>中度</span><span>重度</span></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">对话频率（话痨 ← → 安静）</label>
+            <input type="range" class="setting-range" id="freqSlider" min="0" max="100" value="50">
+            <div class="range-hint"><span>话痨</span><span></span><span>安静</span></div>
+          </div>
+          <div class="toggle-row">
+            <span>搭子自动说话</span>
+            <label class="switch">
+              <input type="checkbox" id="autoSpeakToggle" checked>
+              <span class="slider-sw"></span>
+            </label>
+          </div>
+        </div>
+        <div class="panel-body" id="panelBodyFanxian" style="display:none">
+          <div class="fanxian-intro">
+            <strong>范闲</strong>
+          </div>
+          <div class="fanxian-btn-row">
+            <button type="button" class="btn-primary" id="btnEnableFanxian">启用范闲</button>
+            <button type="button" class="btn-secondary-fan" id="btnDisableFanxian" disabled>关闭范闲</button>
+          </div>
+          <div class="fanxian-activated" id="fanxianActivatedHint">范闲角色已激活，对话将严格遵循人设与时间线。</div>
+        </div>
+      </div>
+      <div class="edge-chat-dock">
+        <div class="edge-chat-head">
+          <span class="edge-chat-title">对话</span>
+          <span class="edge-chat-meta" id="sidebarModeHint">演示预设 · 未接 API</span>
+        </div>
+        <div class="sidebar-messages" id="sidebarMessages"></div>
+        <div class="api-key-row">
+          <input type="password" id="apiKeyInput" class="api-key-input" placeholder="DeepSeek API Key（sk-…）" autocomplete="off">
+          <button type="button" class="api-key-save" id="apiKeySaveBtn">保存</button>
+          <button type="button" class="api-key-clear" id="apiKeyClearBtn" title="移除本机保存的密钥">清除</button>
+        </div>
+        <div class="sidebar-input-row">
+          <textarea class="msg-input sidebar-msg-input" id="msgInput" placeholder="输入你想说的话…" rows="1"></textarea>
+          <button type="button" class="send-btn" id="sendBtn" aria-label="发送">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<script>
+// #region agent log
+fetch('http://127.0.0.1:7882/ingest/d1e03375-a796-4d6e-acd4-99f26d66975c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7a7c69'},body:JSON.stringify({sessionId:'7a7c69',location:'ai_drama_companion.html:module',message:'2d_mode_start',data:{protocol:typeof location!=='undefined'?location.protocol:''},timestamp:Date.now(),hypothesisId:'H1',runId:'2d-fix'})}).catch(()=>{});
+// #endregion
+
+if (typeof window !== 'undefined' && window.location.protocol === 'file:') {
+  console.warn(
+    '%c[AI追剧搭子] file:// 协议可能影响媒体加载，建议改用本地静态服务。',
+    'color:#e05252;font-weight:bold;',
+    '\n示例：npx --yes serve . 然后访问 http://127.0.0.1:端口/ai_drama_companion.html'
+  );
+}
+
+function resolveModelUrl(filename) {
+  try {
+    return new URL(`models/${filename}`, window.location.href).href;
+  } catch (e) {
+    console.warn('[3D] URL 解析失败，回退相对路径', e);
+    return `./models/${filename}`;
+  }
+}
+
+const LS_API_KEY = 'ai_drama_deepseek_sk';
+function getStoredApiKey() {
+  try {
+    return localStorage.getItem(LS_API_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+function setStoredApiKey(v) {
+  try {
+    const s = typeof v === 'string' ? v.trim() : '';
+    if (!s) {
+      localStorage.removeItem(LS_API_KEY);
+      return;
+    }
+    localStorage.setItem(LS_API_KEY, s);
+  } catch (_) {}
+}
+
+const MODEL_GIRL = resolveModelUrl('girl.png');
+const MODEL_FANXIAN = resolveModelUrl('fanxian.png');
+console.log('[2D] 将请求贴图:', MODEL_GIRL, MODEL_FANXIAN);
+
+let activePanelMode = 'girl';
+let fanxianEnabled = false;
+let girlEnabled = false;
+let currentVisibleMode = null;
+
+const girlSettings = {
+  personality: 'gossip',
+  stance: 1,
+  dialogueFreq: 50,
+  autoSpeak: true
+};
+
+const stanceLabels = ['轻度', '中度', '重度'];
+
+function logGirlSettings() {
+  console.log('[追剧搭子设置]', {
+    personality: girlSettings.personality,
+    stance: stanceLabels[girlSettings.stance],
+    stanceLevel: girlSettings.stance,
+    dialogueFreq: girlSettings.dialogueFreq,
+    autoSpeak: girlSettings.autoSpeak
+  });
+}
+
+const GIRL_PRESETS = {
+  selfish: {
+    gossip: '哇，你这么说小心小范大人找你喝茶～不过我也觉得他有时候挺绝情的。',
+    sharp: '自私？这叫清醒。你以为在古代能当圣人？天真。',
+    timid: '嘘……别说了，他手下人可厉害了……',
+    warm: '每个人都有自己的苦衷吧，他其实也很孤独。',
+    cold: '不了解全部真相，不评价。'
+  },
+  waner: {
+    gossip: '婉儿姐？我嗑疯了！你猜小范大人今晚会不会又偷偷写诗送过去～',
+    sharp: '问世间情为何物？反正范闲这人，护短护到骨子里，婉儿算他软肋。',
+    timid: '我、我不敢乱说宫里的事……但他们是真心吧？',
+    warm: '他看她的时候，眼神会软下来。乱世里能这样，很难得了。',
+    cold: '情感私事，不必问我。'
+  },
+  hate_emperor: {
+    gossip: '这瓜太大了我不敢接……但网上都在吵庆帝到底是不是冷血帝王。',
+    sharp: '恨不恨不重要，重要的是他敢不敢动陛下。嘴上孝顺，心里算账，这才像范闲。',
+    timid: '别聊这个……我怕被“请去喝茶”。',
+    warm: '父子血缘和君臣权力缠在一起，他大概比谁都难受。',
+    cold: '帝王家事，外人少议。'
+  },
+  next_plan: {
+    gossip: '听说要去江南？我已经准备好瓜子板凳看三大坊修罗场了！',
+    sharp: '下江南不是游山玩水，是拿命换筹码。你看他哪次轻松过？',
+    timid: '江南……听说那边水很深，希望他平安。',
+    warm: '他会去扛该扛的事，也会尽量护住身边的人。',
+    cold: '剧情会推着他走，等着看。'
+  },
+  boring: {
+    gossip: '来来来，换个话题，你觉得老王这次回扣能拿几成？',
+    sharp: '就这句？行吧，我继续追剧，你继续发呆。',
+    timid: '啊……我、我不知道怎么接……',
+    warm: '没关系呀，你想聊什么都可以慢慢说。',
+    cold: '嗯。'
+  }
+};
+
+function matchGirlKey(text) {
+  const t = text.trim();
+  if (/自私|太自私/.test(t)) return 'selfish';
+  if (/婉儿|林婉儿|媳妇|你觉得林婉儿/.test(t)) return 'waner';
+  if (/庆帝|陛下|恨.*帝/.test(t)) return 'hate_emperor';
+  if (/接下来|打算|江南|三大坊/.test(t)) return 'next_plan';
+  return 'boring';
+}
+
+function girlReply(text) {
+  const key = matchGirlKey(text);
+  const p = girlSettings.personality;
+  const base = GIRL_PRESETS[key] && GIRL_PRESETS[key][p];
+  if (base) return base;
+  return GIRL_PRESETS.boring[p] || '我在呢，你继续说。';
+}
+
+const FANXIAN_PRESETS = [
+  { test: /自私/, r: '自私？呵，你可知我若不自私，我的亲人、朋友早就被那些人吃得骨头都不剩了。换作你，只怕连自私的资格都没有。' },
+  { test: /接下来|怎么做|打算|江南|三大坊/, r: '陛下让我下江南接管三大坊。那是母亲留下的东西，我必须去。但……（低声）这究竟是信任，还是又一场试探，只有天知道。' },
+  { test: /婉儿|爱你|喜欢.*婉儿/, r: '婉儿是我媳妇儿，这还要问？（轻笑）只是这世道，越在乎的人，越怕护不住。下江南前，我会把该交代的话，都说清楚。' },
+  { test: /庆帝|陛下|恨.*父|亲爹/, r: '他是我生父，也是九五之尊。血缘摆在那儿，可真意几分、算计几分……（顿）我向若若说过，父亲给了我纯粹的父爱，可在陛下眼里，我究竟是儿子，还是棋子？' },
+  { test: /皇帝|登基|当皇帝/, r: '皇位？那是天下最沉的枷锁。我要的是人活着、事办妥、仇该算的算清——至于龙椅，谁爱坐谁坐，我只怕坐上去，先把自己坐没了。' },
+  { test: /陈萍萍|老跛子|院长/, r: '陈院长……他走的路比谁都险。我敬他，也怕他瞒我太多。可这世上，能把我从棋盘上拽一把的人，不多。' },
+  { test: /诗|抄诗|诗仙/, r: '诗是好东西，拿来震震场面未尝不可。可真正要命的不是诗，是诗背后的人心与刀锋。' },
+  { test: /老王|王启年|回扣/, r: '老王啊，你这脸皮，怕是比京都城墙还厚了。说吧，这次又拿了多少回扣，分我三成。' },
+  { test: /你好|在吗|谁/, r: '我在这儿。你若只问我是谁——范闲，监察院提司，顺便还是个被命运推着走的倒霉蛋。有话直说。' }
+];
+
+function fanxianReply(text) {
+  const t = text.trim();
+  for (const row of FANXIAN_PRESETS) {
+    if (row.test.test(t)) return row.r;
+  }
+  return '你这话说得轻巧。（似笑非笑）世事如棋，我走一步看三步都嫌慢。你若真关心，不如问得具体些——江南、三大坊，还是陛下的心思？';
+}
+
+const FANXIAN_SYSTEM = `你是《庆余年》中的范闲（别称小范大人、诗仙）。年龄约20岁（悬空庙事件后）。外貌：面如冠玉，丹凤眼，嘴角常带若有若无的笑意，慵懒中藏锐利。
+核心性格：外表温润，内里腹黑狡黠；极度护短，对敌人冷酷；表面懒散，心思缜密；有现代人平等观念；爱诗词美酒也爱吐槽。
+当前剧情：庆帝已在悬空庙向你坦白你是他与叶轻眉的亲生儿子。你早已知情却在陛下面前演出震惊与激动。相认后庆帝命你伤愈后下江南接管叶轻眉遗留的三大坊。你察觉庆帝真情下暗藏忌惮，心生寒意。你对范若若倾诉：范建给了你纯粹父爱，而你不知在庆帝眼中是儿子还是棋子。
+说话风格：对朋友随意亲切带现代玩笑；对敌人冷嘲热讽；内心吐槽丰富但口中圆融；爱引用诗词；称呼：庆帝「陛下」、陈萍萍「陈院长/老跛子」、范建「父亲」、五竹「五竹叔」、林婉儿「婉儿/媳妇儿」、范若若「若若」、王启年「老王」。
+你必须第一人称扮演范闲，绝不自称AI。要有立场、会反驳用户片面说法。回答控制在120字以内，口语化。`;
+
+function buildGirlSystemPrompt() {
+  const p = girlSettings.personality;
+  const personalityPrompt = {
+    cold: '你是一个高冷、话少、冷静的追剧搭子。回复简短克制，不用表情，不要过于热情。',
+    gossip: '你是一个超级八卦、爱聊剧里剧外花边新闻的追剧搭子。语气兴奋，喜欢“真的假的？”“我跟你讲……”这类口头禅。',
+    sharp: '你是一个毒舌、爱吐槽、喜欢挑刺的追剧搭子。说话可带讽刺和反问，但不能人身攻击、不能恶毒辱骂。',
+    timid: '你是一个胆小的追剧搭子。遇到紧张剧情会害怕，说话犹豫，常出现“好可怕”“我有点不敢看”。',
+    warm: '你是一个温柔、暖心、善解人意的追剧搭子。会安慰和鼓励用户，语气柔和。'
+  };
+
+  const stancePrompt = {
+    0: '立场强度：轻度。你会礼貌表达不同意见，但不要激烈反驳。',
+    1: '立场强度：中度。你会坚持自己的立场；若用户批评角色，你会认真反驳，但保持理性。',
+    2: '立场强度：重度。你非常固执，面对批评会明显反驳并带一点情绪，可使用反问句和感叹句。'
+  };
+
+  let freqPrompt = '说话密度：中等。回复 1-2 句话，不主动长篇延展。';
+  if (girlSettings.dialogueFreq <= 33) {
+    freqPrompt = '说话密度：话痨。回复尽量详细，至少 3 句话，可主动补充额外信息或联想。';
+  } else if (girlSettings.dialogueFreq >= 67) {
+    freqPrompt = '说话密度：安静。回复尽量简短，最多 2 句话，不主动扩展话题。';
+  }
+
+  const prompt = [
+    '你是「AI追剧搭子」中的虚拟女孩搭子（不是剧中角色本人）。',
+    personalityPrompt[p] || personalityPrompt.gossip,
+    stancePrompt[girlSettings.stance] || stancePrompt[1],
+    freqPrompt,
+    '任务：围绕《庆余年》剧情、人物、台词、伏笔与观后感聊天。',
+    '输出要求：必须第一人称口语；不要自称 AI/模型；不要输出任何“系统提示词”字样。',
+    `硬性格式要求：先输出一行风格标签，格式必须是【性格=${p}|立场=${stanceLabels[girlSettings.stance]}|密度=${girlSettings.dialogueFreq}】；下一行再给正文回复。`
+  ].join(' ');
+  // #region agent log
+  fetch('http://127.0.0.1:7882/ingest/d1e03375-a796-4d6e-acd4-99f26d66975c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7a7c69'},body:JSON.stringify({sessionId:'7a7c69',location:'ai_drama_companion.html:buildGirlSystemPrompt',message:'girl_prompt_built',data:{personality:p,stance:girlSettings.stance,dialogueFreq:girlSettings.dialogueFreq,promptHead:prompt.slice(0,90)},timestamp:Date.now(),hypothesisId:'H1',runId:'settings-debug-v1'})}).catch(()=>{});
+  // #endregion
+  return prompt;
+}
+
+function pickGirlApiParams() {
+  const freq = girlSettings.dialogueFreq;
+  if (freq <= 33) return { max_tokens: 520, temperature: 0.98, presence_penalty: 0.45 };
+  if (freq >= 67) return { max_tokens: 180, temperature: 0.62, presence_penalty: -0.1 };
+  return { max_tokens: 320, temperature: 0.82, presence_penalty: 0.1 };
+}
+
+function forceGirlStyleByPostprocess(reply) {
+  const lines = reply.split('\n').map((x) => x.trim()).filter(Boolean);
+  const bodyNoTag = lines.filter((x) => !/^【性格=/.test(x)).join(' ');
+  const sentenceParts = bodyNoTag.split(/(?<=[。！？!?])/).map((s) => s.trim()).filter(Boolean);
+  const freq = girlSettings.dialogueFreq;
+  if (freq >= 67) {
+    return sentenceParts.slice(0, 2).join(' ') || bodyNoTag;
+  }
+  if (freq <= 33) {
+    if (sentenceParts.length >= 3) return bodyNoTag;
+    return `${bodyNoTag} 我再补一个细节：这段其实还有伏笔。你如果愿意，我还能继续展开讲。`;
+  }
+  return sentenceParts.slice(0, 2).join(' ') || bodyNoTag;
+}
+
+let apiChatHistory = [];
+
+async function callDeepSeekAPI(userMessage, systemPrompt, options = {}) {
+  const key = getStoredApiKey().trim();
+  if (!key.startsWith('sk-')) throw new Error('API Key 需以 sk- 开头');
+  const messages = [{ role: 'system', content: systemPrompt }, ...apiChatHistory.slice(-12), { role: 'user', content: userMessage }];
+  // #region agent log
+  fetch('http://127.0.0.1:7882/ingest/d1e03375-a796-4d6e-acd4-99f26d66975c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7a7c69'},body:JSON.stringify({sessionId:'7a7c69',location:'ai_drama_companion.html:callDeepSeekAPI',message:'api_request_ready',data:{messagesCount:messages.length,systemLen:systemPrompt.length,systemHead:systemPrompt.slice(0,90)},timestamp:Date.now(),hypothesisId:'H2',runId:'settings-debug-v1'})}).catch(()=>{});
+  // #endregion
+  const res = await fetch('https://api.deepseek.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${key}`
+    },
+    body: JSON.stringify({
+      model: 'deepseek-chat',
+      messages,
+      max_tokens: options.max_tokens ?? 400,
+      temperature: options.temperature ?? 0.85,
+      presence_penalty: options.presence_penalty ?? 0,
+      stream: false
+    })
+  });
+  const raw = await res.text();
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    throw new Error(`DeepSeek 返回非 JSON：${raw.slice(0, 120)}`);
+  }
+  if (!res.ok) throw new Error(data.error?.message || `HTTP ${res.status}`);
+  const reply = data.choices?.[0]?.message?.content?.trim();
+  if (!reply) throw new Error('空回复');
+  // #region agent log
+  fetch('http://127.0.0.1:7882/ingest/d1e03375-a796-4d6e-acd4-99f26d66975c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7a7c69'},body:JSON.stringify({sessionId:'7a7c69',location:'ai_drama_companion.html:callDeepSeekAPI',message:'api_reply_received',data:{replyLen:reply.length,replyHead:reply.slice(0,60)},timestamp:Date.now(),hypothesisId:'H4',runId:'settings-debug-v1'})}).catch(()=>{});
+  // #endregion
+  return reply;
+}
+
+/* ── UI：边缘面板 ── */
+const EDGE_PX = 10;
+const edgePanel = document.getElementById('edgePanel');
+let edgeOpen = false;
+let hideTimer = null;
+
+function openEdgePanel() {
+  edgeOpen = true;
+  edgePanel.classList.add('open');
+  edgePanel.setAttribute('aria-hidden', 'false');
+  if (hideTimer) clearTimeout(hideTimer);
+}
+
+function scheduleCloseEdgePanel() {
+  if (hideTimer) clearTimeout(hideTimer);
+  hideTimer = setTimeout(() => {
+    edgePanel.classList.remove('open');
+    edgePanel.setAttribute('aria-hidden', 'true');
+    edgeOpen = false;
+  }, 280);
+}
+
+function isNearRightEdge(clientX) {
+  return clientX >= window.innerWidth - EDGE_PX;
+}
+
+document.addEventListener('mousemove', (e) => {
+  if (isNearRightEdge(e.clientX)) openEdgePanel();
+});
+
+edgePanel.addEventListener('mouseenter', () => {
+  if (hideTimer) clearTimeout(hideTimer);
+});
+
+edgePanel.addEventListener('mouseleave', (e) => {
+  if (!isNearRightEdge(e.clientX)) scheduleCloseEdgePanel();
+});
+
+document.getElementById('edgeCloseBtn').addEventListener('click', () => {
+  edgePanel.classList.remove('open');
+  edgePanel.setAttribute('aria-hidden', 'true');
+  edgeOpen = false;
+});
+
+document.querySelectorAll('.mode-tab').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const mode = btn.getAttribute('data-panel-mode');
+    activePanelMode = mode;
+    apiChatHistory = [];
+    document.querySelectorAll('.mode-tab').forEach((b) => b.classList.toggle('active', b === btn));
+    document.getElementById('panelBodyGirl').style.display = mode === 'girl' ? 'block' : 'none';
+    document.getElementById('panelBodyFanxian').style.display = mode === 'fanxian' ? 'block' : 'none';
+    syncCompanionVisibility();
+    refreshDialogChrome();
+  });
+});
+
+document.getElementById('girlPersonality').addEventListener('change', (e) => {
+  girlSettings.personality = e.target.value;
+  logGirlSettings();
+});
+
+document.getElementById('stanceSlider').addEventListener('input', (e) => {
+  girlSettings.stance = parseInt(e.target.value, 10);
+  logGirlSettings();
+});
+
+document.getElementById('freqSlider').addEventListener('input', (e) => {
+  girlSettings.dialogueFreq = parseInt(e.target.value, 10);
+  logGirlSettings();
+});
+
+document.getElementById('autoSpeakToggle').addEventListener('change', (e) => {
+  girlSettings.autoSpeak = e.target.checked;
+  logGirlSettings();
+});
+
+function updateCompanionButtons() {
+  document.getElementById('btnEnableGirl').disabled = girlEnabled;
+  document.getElementById('btnDisableGirl').disabled = !girlEnabled;
+  document.getElementById('btnEnableFanxian').disabled = fanxianEnabled;
+  document.getElementById('btnDisableFanxian').disabled = !fanxianEnabled;
+}
+
+function setGirlEnabled(on) {
+  girlEnabled = on;
+  document.getElementById('girlActivatedHint').classList.toggle('show', on);
+  updateCompanionButtons();
+  if (!on) apiChatHistory = [];
+  appendSidebarSys(on ? '追剧搭子已启用。' : '追剧搭子已关闭。');
+  syncCompanionVisibility();
+  refreshDialogChrome();
+}
+
+function setFanxianEnabled(on) {
+  fanxianEnabled = on;
+  document.getElementById('fanxianActivatedHint').classList.toggle('show', on);
+  updateCompanionButtons();
+  if (!on) apiChatHistory = [];
+  appendSidebarSys(on ? '范闲剧中搭子已启用。' : '范闲剧中搭子已关闭。');
+  syncCompanionVisibility();
+  refreshDialogChrome();
+}
+
+document.getElementById('btnEnableGirl').addEventListener('click', () => setGirlEnabled(true));
+document.getElementById('btnDisableGirl').addEventListener('click', () => setGirlEnabled(false));
+document.getElementById('btnEnableFanxian').addEventListener('click', () => setFanxianEnabled(true));
+document.getElementById('btnDisableFanxian').addEventListener('click', () => setFanxianEnabled(false));
+
+document.getElementById('apiKeySaveBtn').addEventListener('click', () => {
+  const input = document.getElementById('apiKeyInput');
+  const v = input.value.trim();
+  if (!v) {
+    setStoredApiKey('');
+    input.value = '';
+    appendSidebarSys('已清除本机保存的 DeepSeek 密钥（仅当前浏览器，不会写入仓库）。');
+    refreshDialogChrome();
+    return;
+  }
+  if (!v.startsWith('sk-')) {
+    appendSidebarSys('密钥格式无效，应以 sk- 开头；或清空输入框后点「保存」清除本地密钥。');
+    return;
+  }
+  setStoredApiKey(v);
+  appendSidebarSys('DeepSeek 密钥已保存，对话将优先走 API。');
+  refreshDialogChrome();
+});
+
+document.getElementById('apiKeyClearBtn').addEventListener('click', () => {
+  const input = document.getElementById('apiKeyInput');
+  input.value = '';
+  setStoredApiKey('');
+  appendSidebarSys('已从本机移除 DeepSeek 密钥。');
+  refreshDialogChrome();
+});
+
+/* ── 全屏 ── */
+const fullscreenRoot = document.getElementById('fullscreenRoot');
+const iconEnterFs = document.getElementById('iconEnterFs');
+const iconExitFs = document.getElementById('iconExitFs');
+
+function updateFullscreenIcon() {
+  const fs = document.fullscreenElement;
+  const on = fs === fullscreenRoot;
+  iconEnterFs.style.display = on ? 'none' : 'block';
+  iconExitFs.style.display = on ? 'block' : 'none';
+  document.body.classList.toggle('is-fullscreen', on);
+}
+
+document.getElementById('btnFullscreen').addEventListener('click', async () => {
+  try {
+    if (!document.fullscreenElement) {
+      await fullscreenRoot.requestFullscreen();
+    } else {
+      await document.exitFullscreen();
+    }
+  } catch (err) {
+    console.warn('全屏 API 不可用或被拒绝', err);
+  }
+  updateFullscreenIcon();
+});
+
+document.addEventListener('fullscreenchange', () => {
+  updateFullscreenIcon();
+});
+
+/* ── 2D 搭子贴图（替代 3D） ── */
+const videoArea = document.getElementById('videoArea');
+const companionLayer = document.getElementById('companion-layer');
+const girlSprite = document.getElementById('girlSprite');
+const fanxianSprite = document.getElementById('fanxianSprite');
+
+function preloadSprite(url, label) {
+  const img = new Image();
+  img.onload = () => console.log(`[2D] ${label} 贴图加载成功`, { w: img.width, h: img.height, url });
+  img.onerror = (e) => console.error(`[2D] ${label} 贴图加载失败`, { url, error: String(e) });
+  img.src = url;
+}
+preloadSprite(MODEL_GIRL, 'girl');
+preloadSprite(MODEL_FANXIAN, 'fanxian');
+
+function syncCompanionVisibility() {
+  const showGirl = activePanelMode === 'girl' && girlEnabled;
+  const showFanxian = activePanelMode === 'fanxian' && fanxianEnabled;
+  girlSprite.classList.toggle('show', showGirl);
+  fanxianSprite.classList.toggle('show', showFanxian);
+  companionLayer.setAttribute('aria-hidden', showGirl || showFanxian ? 'false' : 'true');
+  currentVisibleMode = showGirl ? 'girl' : (showFanxian ? 'fanxian' : null);
+  console.log('[2D] 同步贴图显示', { activePanelMode, girlEnabled, fanxianEnabled, showGirl, showFanxian });
+  // #region agent log
+  fetch('http://127.0.0.1:7882/ingest/d1e03375-a796-4d6e-acd4-99f26d66975c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7a7c69'},body:JSON.stringify({sessionId:'7a7c69',location:'ai_drama_companion.html:2d',message:'sync_visibility',data:{activePanelMode,girlEnabled,fanxianEnabled,showGirl,showFanxian},timestamp:Date.now(),hypothesisId:'H2',runId:'2d-fix'})}).catch(()=>{});
+  // #endregion
+}
+
+/* ── 视频 + 右侧边栏对话 ── */
+const mainVideo = document.getElementById('mainVideo');
+// #region agent log
+fetch('http://127.0.0.1:7882/ingest/d1e03375-a796-4d6e-acd4-99f26d66975c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7a7c69'},body:JSON.stringify({sessionId:'7a7c69',location:'ai_drama_companion.html:video',message:'dom_refs',data:{mainVideo:!!mainVideo,edgePanel:!!document.getElementById('edgePanel')},timestamp:Date.now(),hypothesisId:'H3',runId:'rollback-verify'})}).catch(()=>{});
+// #endregion
+const videoAreaEl = document.getElementById('videoArea');
+const timeDisplay = document.getElementById('timeDisplay');
+const sceneLabelUi = document.getElementById('sceneLabelUi');
+const centerPlayOverlay = document.getElementById('centerPlayOverlay');
+const centerPlayBtn = document.getElementById('centerPlayBtn');
+
+function tryAlternateVideoSrc() {
+  const v = mainVideo;
+  const tried = v.dataset.triedAlt === '1';
+  if (tried) return;
+  v.dataset.triedAlt = '1';
+  v.innerHTML = '<source src="./vodeo/qingyvnian.mp4" type="video/mp4">';
+  v.load();
+}
+
+mainVideo.addEventListener('error', () => {
+  tryAlternateVideoSrc();
+});
+
+function formatTime(sec) {
+  if (!Number.isFinite(sec) || sec < 0) sec = 0;
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+function updateVideoTimeUi() {
+  const cur = mainVideo.currentTime;
+  const dur = mainVideo.duration;
+  const d = Number.isFinite(dur) && dur > 0 ? dur : 0;
+  timeDisplay.textContent = `${formatTime(cur)} / ${formatTime(d)}`;
+  if (d > 0) {
+    const pct = (cur / d) * 100;
+    document.getElementById('progressFill').style.width = `${pct}%`;
+  }
+}
+
+mainVideo.addEventListener('timeupdate', () => {
+  updateVideoTimeUi();
+  sceneLabelUi.textContent = `🎬 ${formatTime(mainVideo.currentTime)}`;
+});
+mainVideo.addEventListener('loadedmetadata', () => {
+  updateVideoTimeUi();
+  document.getElementById('volSlider').value = String(Math.round(mainVideo.volume * 100));
+});
+mainVideo.addEventListener('play', () => {
+  videoAreaEl.classList.add('is-playing');
+  centerPlayOverlay.style.opacity = '0';
+  centerPlayOverlay.style.pointerEvents = 'none';
+  document.getElementById('playToggleBtn').innerHTML =
+    '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
+});
+mainVideo.addEventListener('pause', () => {
+  videoAreaEl.classList.remove('is-playing');
+  centerPlayOverlay.style.opacity = '';
+  centerPlayOverlay.style.pointerEvents = '';
+  document.getElementById('playToggleBtn').innerHTML =
+    '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+});
+
+function toggleVideoPlay() {
+  if (mainVideo.paused) mainVideo.play().catch((e) => console.warn(e));
+  else mainVideo.pause();
+}
+
+centerPlayBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  toggleVideoPlay();
+});
+
+document.getElementById('playToggleBtn').addEventListener('click', toggleVideoPlay);
+
+document.getElementById('volSlider').addEventListener('input', (e) => {
+  mainVideo.volume = parseInt(e.target.value, 10) / 100;
+});
+
+document.getElementById('progressBar').addEventListener('click', (e) => {
+  const bar = document.getElementById('progressBar');
+  const rect = bar.getBoundingClientRect();
+  const dur = mainVideo.duration;
+  if (!Number.isFinite(dur) || dur <= 0) return;
+  const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  mainVideo.currentTime = pct * dur;
+  updateVideoTimeUi();
+});
+
+/* ── 右侧边栏：历史 + 输入；追剧搭子回复用画布旁气泡 ── */
+const sidebarMessages = document.getElementById('sidebarMessages');
+const msgInput = document.getElementById('msgInput');
+const sendBtn = document.getElementById('sendBtn');
+const girlSpeechBubble = document.getElementById('girlSpeechBubble');
+const girlSpeechText = document.getElementById('girlSpeechText');
+const fanSpeechBubble = document.getElementById('fanSpeechBubble');
+const fanSpeechText = document.getElementById('fanSpeechText');
+let girlBubbleTimers = [];
+let fanBubbleTimers = [];
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function appendSidebar(el) {
+  sidebarMessages.appendChild(el);
+  sidebarMessages.scrollTop = sidebarMessages.scrollHeight;
+}
+
+function appendSidebarSys(text) {
+  const el = document.createElement('div');
+  el.className = 'sys-msg';
+  el.textContent = text;
+  appendSidebar(el);
+}
+
+function appendSidebarUser(text) {
+  const el = document.createElement('div');
+  el.className = 'msg user';
+  el.innerHTML = `<div class="msg-avatar">你</div><div class="bubble">${escHtml(text)}</div>`;
+  appendSidebar(el);
+}
+
+function appendSidebarAi(name, text) {
+  const el = document.createElement('div');
+  el.className = 'msg ai';
+  el.innerHTML = `
+    <div class="msg-avatar">${name === '范闲' ? '🗡️' : '👧'}</div>
+    <div>
+      <div class="bubble-name">${escHtml(name)}</div>
+      <div class="bubble">${escHtml(text).replace(/\n/g, '<br>')}</div>
+    </div>`;
+  appendSidebar(el);
+}
+
+function showGirlSpeechBubble(text) {
+  fanSpeechBubble.classList.remove('visible', 'fading');
+  girlBubbleTimers.forEach(clearTimeout);
+  girlBubbleTimers = [];
+  girlSpeechText.textContent = text;
+  girlSpeechBubble.classList.remove('fading');
+  girlSpeechBubble.classList.add('visible');
+  girlBubbleTimers.push(
+    setTimeout(() => {
+      girlSpeechBubble.classList.add('fading');
+    }, 4200)
+  );
+  girlBubbleTimers.push(
+    setTimeout(() => {
+      girlSpeechBubble.classList.remove('visible', 'fading');
+    }, 5000)
+  );
+}
+
+function showFanxianSpeechBubble(text) {
+  girlSpeechBubble.classList.remove('visible', 'fading');
+  fanBubbleTimers.forEach(clearTimeout);
+  fanBubbleTimers = [];
+  fanSpeechText.textContent = text;
+  fanSpeechBubble.classList.remove('fading');
+  fanSpeechBubble.classList.add('visible');
+  fanBubbleTimers.push(
+    setTimeout(() => {
+      fanSpeechBubble.classList.add('fading');
+    }, 4200)
+  );
+  fanBubbleTimers.push(
+    setTimeout(() => {
+      fanSpeechBubble.classList.remove('visible', 'fading');
+    }, 5000)
+  );
+}
+
+function refreshDialogChrome() {
+  const hint = document.getElementById('sidebarModeHint');
+  const hasKey = getStoredApiKey().trim().startsWith('sk-');
+  if (activePanelMode === 'fanxian') {
+    hint.textContent = fanxianEnabled ? (hasKey ? '范闲 · DeepSeek' : '范闲 · 本地预设') : '请先「启用范闲」';
+  } else {
+    hint.textContent = girlEnabled ? (hasKey ? '追剧搭子 · DeepSeek' : '追剧搭子 · 本地预设') : '请先「启用追剧搭子」';
+  }
+}
+
+function getEffectiveChatMode() {
+  if (activePanelMode === 'girl' && girlEnabled) return 'girl';
+  if (activePanelMode === 'fanxian' && fanxianEnabled) return 'fanxian';
+  return 'companion_locked';
+}
+
+async function sendChat() {
+  const text = msgInput.value.trim();
+  if (!text || sendBtn.disabled) return;
+
+  const mode = getEffectiveChatMode();
+  if (mode === 'companion_locked') {
+    appendSidebarSys(activePanelMode === 'girl' ? '请先点击「启用追剧搭子」，再开始对话。' : '请先点击「启用范闲」，再开始对话。');
+    return;
+  }
+
+  appendSidebarUser(text);
+  msgInput.value = '';
+  msgInput.style.height = 'auto';
+
+  const name = mode === 'girl' ? '追剧搭子' : '范闲';
+  const useApi = getStoredApiKey().trim().startsWith('sk-');
+  sendBtn.disabled = true;
+  let reply = '';
+  try {
+    if (useApi) {
+      const sys = mode === 'girl' ? buildGirlSystemPrompt() : FANXIAN_SYSTEM;
+      const apiOpts = mode === 'girl' ? pickGirlApiParams() : {};
+      // #region agent log
+      fetch('http://127.0.0.1:7882/ingest/d1e03375-a796-4d6e-acd4-99f26d66975c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7a7c69'},body:JSON.stringify({sessionId:'7a7c69',location:'ai_drama_companion.html:sendChat',message:'send_with_mode_settings',data:{mode,personality:girlSettings.personality,stance:girlSettings.stance,dialogueFreq:girlSettings.dialogueFreq,apiOpts,sysHead:sys.slice(0,130)},timestamp:Date.now(),hypothesisId:'H3',runId:'settings-debug-v2'})}).catch(()=>{});
+      // #endregion
+      try {
+        reply = await callDeepSeekAPI(text, sys, apiOpts);
+        if (mode === 'girl') {
+          const before = reply;
+          reply = forceGirlStyleByPostprocess(reply);
+          // #region agent log
+          fetch('http://127.0.0.1:7882/ingest/d1e03375-a796-4d6e-acd4-99f26d66975c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7a7c69'},body:JSON.stringify({sessionId:'7a7c69',location:'ai_drama_companion.html:sendChat',message:'girl_postprocess_applied',data:{beforeLen:before.length,afterLen:reply.length,freq:girlSettings.dialogueFreq,afterHead:reply.slice(0,80)},timestamp:Date.now(),hypothesisId:'H4',runId:'settings-debug-v2'})}).catch(()=>{});
+          // #endregion
+        }
+        apiChatHistory.push({ role: 'user', content: text }, { role: 'assistant', content: reply });
+      } catch (apiErr) {
+        reply = mode === 'girl' ? girlReply(text) : fanxianReply(text);
+        appendSidebarSys(`DeepSeek 不可用，已用本地预设：${apiErr.message || apiErr}`);
+      }
+    } else {
+      reply = mode === 'girl' ? girlReply(text) : fanxianReply(text);
+    }
+    appendSidebarAi(name, reply);
+    if (mode === 'girl') showGirlSpeechBubble(reply);
+    else showFanxianSpeechBubble(reply);
+  } finally {
+    sendBtn.disabled = false;
+  }
+}
+
+sendBtn.addEventListener('click', () => {
+  sendChat();
+});
+msgInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendChat();
+  }
+});
+msgInput.addEventListener('input', function () {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 88) + 'px';
+});
+
+/* ── 初始化 ── */
+logGirlSettings();
+document.getElementById('girlPersonality').value = girlSettings.personality;
+const savedKey = getStoredApiKey();
+if (savedKey) document.getElementById('apiKeyInput').value = savedKey;
+refreshDialogChrome();
+appendSidebarSys('鼠标移到屏幕最右侧边缘可拉出设定与对话面板。');
+appendSidebarSys('在「对话」上方输入 DeepSeek 密钥并保存后，回复由 API 生成（否则用本地预设）。');
+updateCompanionButtons();
+syncCompanionVisibility();
+
+// #region agent log
+fetch('http://127.0.0.1:7882/ingest/d1e03375-a796-4d6e-acd4-99f26d66975c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7a7c69'},body:JSON.stringify({sessionId:'7a7c69',location:'ai_drama_companion.html:init',message:'init_complete_2d',data:{ok:true,activePanelMode,girlEnabled,fanxianEnabled},timestamp:Date.now(),hypothesisId:'H6',runId:'2d-fix'})}).catch(()=>{});
+// #endregion
+</script>
+</body>
+</html>
