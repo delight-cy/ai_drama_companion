@@ -996,8 +996,8 @@ body.is-fullscreen #fullscreenRoot {
         </div>
       </div>
       <div id="companion-layer" aria-hidden="true">
-        <img id="girlSprite" class="companion-sprite" src="./models/girl.png" alt="追剧搭子贴图">
-        <img id="fanxianSprite" class="companion-sprite" src="./models/fanxian.png" alt="范闲贴图">
+        <img id="girlSprite" class="companion-sprite" src="./models/girl.png" alt="追剧搭子贴图" onerror="this.onerror=null;this.src='./girl.png'">
+        <img id="fanxianSprite" class="companion-sprite" src="./models/fanxian.png" alt="范闲贴图" onerror="this.onerror=null;this.src='./fanxian.png'">
       </div>
       <div id="girlSpeechBubble" class="girl-speech-bubble" aria-live="polite">
         <div class="girl-speech-inner" id="girlSpeechText"></div>
@@ -1150,6 +1150,14 @@ function resolveModelUrl(filename) {
     return `./models/${filename}`;
   }
 }
+/** 贴图根目录备用路径（兼容 GitHub 网页上传时把 png 放在仓库根目录的情况） */
+function resolveRootAssetUrl(filename) {
+  try {
+    return new URL(filename, window.location.href).href;
+  } catch {
+    return `./${filename}`;
+  }
+}
 
 const LS_API_KEY = 'ai_drama_deepseek_sk';
 function getStoredApiKey() {
@@ -1170,9 +1178,12 @@ function setStoredApiKey(v) {
   } catch (_) {}
 }
 
-const MODEL_GIRL = resolveModelUrl('girl.png');
-const MODEL_FANXIAN = resolveModelUrl('fanxian.png');
-console.log('[2D] 将请求贴图:', MODEL_GIRL, MODEL_FANXIAN);
+const MODEL_GIRL_PRIMARY = resolveModelUrl('girl.png');
+const MODEL_GIRL_FALLBACK = resolveRootAssetUrl('girl.png');
+const MODEL_FANXIAN_PRIMARY = resolveModelUrl('fanxian.png');
+const MODEL_FANXIAN_FALLBACK = resolveRootAssetUrl('fanxian.png');
+console.log('[2D] 贴图候选路径 girl:', MODEL_GIRL_PRIMARY, '|', MODEL_GIRL_FALLBACK);
+console.log('[2D] 贴图候选路径 fanxian:', MODEL_FANXIAN_PRIMARY, '|', MODEL_FANXIAN_FALLBACK);
 
 let activePanelMode = 'girl';
 let fanxianEnabled = false;
@@ -1551,14 +1562,19 @@ const companionLayer = document.getElementById('companion-layer');
 const girlSprite = document.getElementById('girlSprite');
 const fanxianSprite = document.getElementById('fanxianSprite');
 
-function preloadSprite(url, label) {
+function preloadSpritePair(primary, fallback, label) {
   const img = new Image();
-  img.onload = () => console.log(`[2D] ${label} 贴图加载成功`, { w: img.width, h: img.height, url });
-  img.onerror = (e) => console.error(`[2D] ${label} 贴图加载失败`, { url, error: String(e) });
-  img.src = url;
+  img.onload = () => console.log(`[2D] ${label} 贴图加载成功`, { w: img.width, h: img.height, url: img.src });
+  img.onerror = () => {
+    const img2 = new Image();
+    img2.onload = () => console.log(`[2D] ${label} 贴图加载成功（根目录回退）`, { w: img2.width, h: img2.height, url: img2.src });
+    img2.onerror = () => console.error(`[2D] ${label} 贴图加载失败`, { primary, fallback });
+    img2.src = fallback;
+  };
+  img.src = primary;
 }
-preloadSprite(MODEL_GIRL, 'girl');
-preloadSprite(MODEL_FANXIAN, 'fanxian');
+preloadSpritePair(MODEL_GIRL_PRIMARY, MODEL_GIRL_FALLBACK, 'girl');
+preloadSpritePair(MODEL_FANXIAN_PRIMARY, MODEL_FANXIAN_FALLBACK, 'fanxian');
 
 function syncCompanionVisibility() {
   const showGirl = activePanelMode === 'girl' && girlEnabled;
